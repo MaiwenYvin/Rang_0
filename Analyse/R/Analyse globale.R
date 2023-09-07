@@ -30,17 +30,17 @@ library(dplyr)
 
 # Importation des donnees
 
-horizons_sondages = read_xlsx("../1_nb_horizons_par_site.xlsx")
-BV = read_xlsx("2_BV.xlsx")
-mesures_ct = read_xlsx("3_mesures_ct_par_site.xlsx")
-total_ct = read.xlsx("4_ct_par_site.xlsx")
-pentes = read.xlsx("Pentes_sites_r0.xlsx")
-fdv = read.xlsx("Largeur_fdv_propre.xlsx")
-geologie = read.xlsx("5_geologie.xlsx")
-pedologie = read.xlsx("pedologie_simplif.xlsx")
-texture_dominante = read.xlsx("6_texture_dom.xlsx")
-zh = read.xlsx("Surface_ZH_FDV.xlsx")
-exutoires = read.xlsx("7_exutoires.xlsx")
+horizons_sondages = read_xlsx("Analyse/1_nb_horizons_par_site.xlsx")
+BV = read_xlsx("Analyse/2_BV.xlsx")
+mesures_ct = read_xlsx("Analyse/3_mesures_ct_par_site.xlsx")
+total_ct = read.xlsx("Analyse/4_ct_par_site.xlsx")
+pentes = read.xlsx("Analyse/Pentes_sites_r0.xlsx")
+fdv = read.xlsx("Analyse/Largeur_fdv_propre.xlsx")
+geologie = read.xlsx("Analyse/5_geologie.xlsx")
+#pedologie = read.xlsx("Analyse/pedologie_simplif.xlsx")
+texture_dominante = read.xlsx("Analyse/6_texture_dom.xlsx")
+zh = read.xlsx("Analyse/Surface_ZH_FDV.xlsx")
+exutoires = read.xlsx("Analyse/7_exutoires.xlsx")
 
 # changement nom colonne de jointure
 
@@ -52,7 +52,7 @@ exutoires <- rename(exutoires, ID_site=ID_point)
 # méga tableau de données
 
 donnees <- geologie %>% 
-  left_join(pedologie, by = "ID_site") %>% 
+ # left_join(pedologie, by = "ID_site") %>% 
   left_join(horizons_sondages, by = "ID_site") %>% 
   left_join(texture_dominante, by = "ID_site") %>%
   left_join(BV, by = "ID_site") %>% 
@@ -65,7 +65,7 @@ donnees <- geologie %>%
 
 write.xlsx(donnees, file = "donnees_sites_r0.xlsx", rowNames = FALSE)
 
-donnees_simplif = read_xlsx("donnees_simplif_sites_r0.xlsx")
+donnees_simplif <- read_xlsx("Analyse/donnees_simplif_sites_r0.xlsx")
 
 
 # ATTENTION :
@@ -74,13 +74,51 @@ donnees_simplif = read_xlsx("donnees_simplif_sites_r0.xlsx")
 # passage de la colonne ID_site en nom de ligne
 
 donnees_pour_ACP <- donnees_simplif[,-c(2,5,8,22,28,29,34)]
+
+distri_data <- donnees_pour_ACP %>% 
+  tidyr::pivot_longer(Prof_arret:Longitude)
+
+
+distri <- ggplot(data = distri_data,
+         aes(x = value)) +
+    geom_density(fill = "darkgreen",
+                 alpha = 0.2) +
+    facet_wrap(~name, scales = "free")
+
+# pour log-transformer on utilise 1+ sinon valeurs parfois négatoves ou bien NA
+distri_log <- distri_data %>% 
+  mutate(value = log(1 + value)) %>% 
+  ggplot(aes(x = value)) +
+  geom_density(fill = "darkgreen",
+               alpha = 0.2) +
+  facet_wrap(~name, scales = "free")
+
+distri
+
+distri_log
+
+donnees_pour_ACP <- donnees_pour_ACP %>% 
+  mutate_at(vars(aire_BV_m2,
+                 Conductivi,
+                 Larg_fdv,
+                 Longueur_ecoul,
+                 Longueur_tot_ct,
+                 Pente_lat_PTV:perimet_BV_m,
+                 Prof_nappe:Surface_ZH_m2),
+            function(x) log(1 + x))
+
+
+
+
 donnees_pour_ACP <- donnees_pour_ACP %>%
   mutate_all(~ifelse(is.na(.), mean(., na.rm = TRUE), .))
 
 
-donnees_pour_ACP <- as.data.frame(donnees_pour_ACP)
-rownames(donnees_pour_ACP) <- donnees_pour_ACP[, 1]
-donnees_pour_ACP <- donnees_pour_ACP[, -1]
+donnees_pour_ACP <- donnees_pour_ACP %>% #as.data.frame(donnees_pour_ACP)
+  tibble::column_to_rownames(var = "ID_site")
+
+# rownames(donnees_pour_ACP) <- donnees_pour_ACP[, 1]
+# donnees_pour_ACP <- donnees_pour_ACP[, -1]
 
 acp <- PCA(donnees_pour_ACP, scale.unit = TRUE, graph = FALSE)
 fviz_pca_ind(acp, repel = TRUE)
@@ -88,6 +126,8 @@ fviz_pca_var(acp, repel = TRUE)
 
 fviz_pca(acp,
          repel=TRUE)
+
+
 
 # trop de donnees, test en enlevant des donnees peu intéressantes ou incertaines
 
@@ -197,7 +237,7 @@ corrplot(matrice_correl, order="hclust", tl.col="black", tl.srt=45, addrect = 5)
 # modele_final_aic <- stepAIC(modele_initial, direction = "both", trace = FALSE)
 # summary(modele_final_aic)
 
-source(file="R/lm_indices_env.R")
+source(file="Analyse/R/lm_indices_env.R")
 
 library(flextable)
 library(purrr)
@@ -218,7 +258,7 @@ donnees_pour_ACP4 <- donnees_pour_ACP2 %>%
   cbind(ACP_pente_R0)
 
 lm_indices_env(
-  df = donnees_pour_ACP4,
+  df = donnees_pour_ACP4 %>% mutate_all(scale),
   variables_dependantes = c("Largeur_FDV",
                             "Surface_ZH",
                             "Profondeur_MO",
@@ -228,12 +268,12 @@ lm_indices_env(
                             "Lpb",
                             "Nombre_CT",
                             "Longueur_CT"),
-  variables_explicatives = c("Pente",
+  variables_explicatives = c("ACP_pente_R0",
                              "Surface_BV",
                              # "Allongement_BV",
-                             "Altitude",
-                             "Longitude",
-                             "Latitude"
+                             "Altitude"#,
+                             # "Longitude",
+                             # "Latitude"
   ),
   step = FALSE # ne peut être TRUE que si tous les modèles simplifiés par stepAIC retiennent les mêmes variables
 ) %>%
