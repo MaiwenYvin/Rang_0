@@ -5,7 +5,7 @@
 ##############
 
 # Ouverture du dossier
-setwd("E:/OFB/2023_Rang_Zéro_YVIN_MAIWEN/Analyse")
+# setwd("E:/OFB/2023_Rang_Zéro_YVIN_MAIWEN/Analyse")
 
 
 # Import de tous les trucs utiles aux analyses
@@ -30,7 +30,7 @@ library(dplyr)
 
 # Importation des donnees
 
-horizons_sondages = read_xlsx("1_nb_horizons_par_site.xlsx")
+horizons_sondages = read_xlsx("../1_nb_horizons_par_site.xlsx")
 BV = read_xlsx("2_BV.xlsx")
 mesures_ct = read_xlsx("3_mesures_ct_par_site.xlsx")
 total_ct = read.xlsx("4_ct_par_site.xlsx")
